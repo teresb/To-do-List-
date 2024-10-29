@@ -1,30 +1,22 @@
+const API_URL = 'https://671909137fc4c5ff8f4c3092.mockapi.io/Tasks'; // Replace with your mock API URL
+
 window.addEventListener('load', () => {
     const form = document.querySelector("#new-task");
     const input = document.querySelector("#new-task-input");
     const list_el = document.querySelector("#tasks");
 
-    // Load tasks from local storage
-    const savedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
-    savedTasks.forEach(task => {
-        createTaskElement(task);
-    });
-
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-
-        const task = input.value;
-
-        if (!task) {
-            alert("Please fill out the task");
-            return;
+    // Load tasks from API
+    const loadTasks = async () => {
+        try {
+            const response = await fetch(API_URL);
+            const tasks = await response.json();
+            tasks.forEach(task => createTaskElement(task.title, task.id)); // Assuming task has a title and id
+        } catch (error) {
+            console.error("Failed to load tasks:", error);
         }
+    };
 
-        createTaskElement(task);
-        saveTaskToLocalStorage(task);
-        input.value = "";
-    });
-
-    function createTaskElement(task) {
+    const createTaskElement = (taskTitle, taskId) => {
         const task_el = document.createElement("div");
         task_el.classList.add("task");
 
@@ -36,7 +28,7 @@ window.addEventListener('load', () => {
         const task_input_el = document.createElement("input");
         task_input_el.classList.add("text");
         task_input_el.type = "text";
-        task_input_el.value = task;
+        task_input_el.value = taskTitle;
         task_input_el.setAttribute("readonly", "readonly");
 
         task_content_el.appendChild(task_input_el);
@@ -46,11 +38,11 @@ window.addEventListener('load', () => {
 
         const task_edit_el = document.createElement("button");
         task_edit_el.classList.add("edit");
-        task_edit_el.innerHTML = "Edit";
+        task_edit_el.innerText = "Edit";
 
         const task_delete_el = document.createElement("button");
         task_delete_el.classList.add("delete");
-        task_delete_el.innerHTML = "Delete";
+        task_delete_el.innerText = "Delete";
 
         task_actions_el.appendChild(task_edit_el);
         task_actions_el.appendChild(task_delete_el);
@@ -59,42 +51,77 @@ window.addEventListener('load', () => {
 
         list_el.appendChild(task_el);
 
-        task_edit_el.addEventListener('click', () => {
-            if (task_edit_el.innerText.toLowerCase() == "edit") {
+        task_edit_el.addEventListener('click', async () => {
+            if (task_edit_el.innerText.toLowerCase() === "edit") {
                 task_input_el.removeAttribute("readonly");
                 task_input_el.focus();
                 task_edit_el.innerText = "Save";
             } else {
                 task_input_el.setAttribute("readonly", "readonly");
                 task_edit_el.innerText = "Edit";
-                updateTaskInLocalStorage(task, task_input_el.value);
+                await updateTaskInAPI(taskId, task_input_el.value);
             }
         });
 
-        task_delete_el.addEventListener('click', () => {
+        task_delete_el.addEventListener('click', async () => {
+            await removeTaskFromAPI(taskId);
             list_el.removeChild(task_el);
-            removeTaskFromLocalStorage(task);
         });
-    }
+    };
 
-    function saveTaskToLocalStorage(task) {
-        const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-        tasks.push(task);
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-    }
-
-    function updateTaskInLocalStorage(oldTask, newTask) {
-        const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-        const taskIndex = tasks.indexOf(oldTask);
-        if (taskIndex > -1) {
-            tasks[taskIndex] = newTask;
-            localStorage.setItem('tasks', JSON.stringify(tasks));
+    const addTaskToAPI = async (task) => {
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title: task, completed: false }) // Mock API expects a title and completed status
+            });
+            const newTask = await response.json();
+            createTaskElement(newTask.title, newTask.id); // Add the new task to the UI
+        } catch (error) {
+            console.error("Failed to add task:", error);
         }
-    }
+    };
 
-    function removeTaskFromLocalStorage(task) {
-        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-        tasks = tasks.filter(t => t !== task);
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-    }
+    const updateTaskInAPI = async (taskId, newTitle) => {
+        try {
+            await fetch(`${API_URL}/${taskId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title: newTitle, completed: false }) // Update with the new title
+            });
+        } catch (error) {
+            console.error("Failed to update task:", error);
+        }
+    };
+
+    const removeTaskFromAPI = async (taskId) => {
+        try {
+            await fetch(`${API_URL}/${taskId}`, {
+                method: 'DELETE'
+            });
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+        }
+    };
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const task = input.value.trim(); // Trim input value
+
+        if (!task) {
+            alert("Please fill out the task");
+            return;
+        }
+
+        addTaskToAPI(task); // Add task to API
+        input.value = "";
+    });
+
+    loadTasks(); // Load tasks from the API when the page loads
 });
